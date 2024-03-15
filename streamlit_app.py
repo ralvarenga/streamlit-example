@@ -1,40 +1,45 @@
-import altair as alt
+import cv2
+from pyzbar.pyzbar import decode
 import numpy as np
-import pandas as pd
 import streamlit as st
+from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
 
-"""
-# Welcome to Streamlit!
+class VideoTransformer(VideoTransformerBase):
+    def __init__(self):
+        super().__init__()
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+    def transform(self, frame):
+        image = frame.to_ndarray(format="bgr24")
+        barcodes = read_barcodes(image)
+        
+        for barcode in barcodes:
+            # Desenhando um retângulo ao redor do código de barras
+            (x, y, w, h) = barcode.rect
+            cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 5)
+            # Obtendo os dados do código de barras
+            barcode_data = barcode.data.decode("utf-8")
+            barcode_type = barcode.type
+            # Exibindo os dados na interface
+            st.write(f"Tipo de código de barras: {barcode_type}")
+            st.write(f"Dados do código de barras: {barcode_data}")
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+        return image
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+def read_barcodes(image):
+    # Convertendo a imagem para escala de cinza
+    gray_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Decodificando os códigos de barras na imagem
+    barcodes = decode(gray_img)
+    return barcodes
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
+def main():
+    st.title('Leitor de Código de Barras via Webcam')
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+    webrtc_ctx = webrtc_streamer(
+        key="example",
+        video_transformer_factory=VideoTransformer,
+        async_transform=True,
+    )
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
-
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+if __name__ == "__main__":
+    main()
